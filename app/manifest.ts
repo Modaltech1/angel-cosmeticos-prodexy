@@ -14,12 +14,12 @@ export default function manifest(): MetadataRoute.Manifest {
         theme_color: '#ffffff',
         icons: [
             {
-                src: '/icon_prodexy.png',
+                src: '/icon.jpg',
                 sizes: '192x192',
                 type: 'image/png',
             },
             {
-                src: '/icon_prodexy.png',
+                src: '/icon.jpg',
                 sizes: '512x512',
                 type: 'image/png',
             },
