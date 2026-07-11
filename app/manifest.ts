@@ -4,7 +4,7 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
     return {
-        name: 'Prodexy',
+        name: 'Angel Cosmeticos',
         short_name: 'Prodexy',
         start_url: '/',
         scope: '/',

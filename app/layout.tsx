@@ -20,7 +20,7 @@ const bodyFont = DM_Sans({
 export const metadata: Metadata = {
   title: brand.appName,
   description: brand.description,
-  generator: 'Prodexy',
+  generator: 'Angel Cosmeticos',
   icons: {
     icon: [{ url: brand.logoUrl }],
     apple: brand.logoUrl,

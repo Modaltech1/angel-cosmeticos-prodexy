@@ -3,6 +3,6 @@ export const brand = {
   description: 'Sistema completo de gestão de vendas de perfumes',
   logoUrl: '/icon.jpg',
   colors: {
-    primary: '#23c6b7',
+    primary: '#3A2A12',
   },
 }
