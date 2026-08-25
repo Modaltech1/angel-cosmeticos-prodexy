@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader } from '@prodexy/ui'
 import { Button } from '@prodexy/ui'
 import { Input } from '@prodexy/ui'
-import { Plus, Search, MoreVertical, ChevronLeft, ChevronRight, Filter } from 'lucide-react'
+import { Plus, Search, MoreVertical, ChevronLeft, ChevronRight, Filter, Printer } from 'lucide-react'
 import { SaleDialog } from '@/components/sale-dialog'
 import { Badge } from '@prodexy/ui'
 import {
@@ -17,6 +17,8 @@ import {
 import { SaleDetailsDialog } from '@/components/sale-details-dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@prodexy/ui'
 import { supabase } from '@/lib/supabaseClient'
+import { loadSaleReceipt } from '@/lib/load-sale-receipt'
+import { printThermalReceipt } from '@/lib/thermal-receipt'
 
 interface Sale {
   id: string
@@ -43,6 +45,7 @@ export default function Page() {
   const [sales, setSales] = useState<Sale[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [printingSaleId, setPrintingSaleId] = useState<string | null>(null)
 
   const loadSales = async () => {
     setLoading(true)
@@ -246,6 +249,25 @@ export default function Page() {
     setIsDetailsOpen(true)
   }
 
+  const handlePrintSale = async (sale: Sale) => {
+    setPrintingSaleId(sale.id)
+    setError(null)
+
+    try {
+      const receipt = await loadSaleReceipt(sale.id, sale.customer)
+      if (!printThermalReceipt(receipt)) {
+        setError(
+          'Não foi possível abrir a impressão. Verifique as permissões do navegador.',
+        )
+      }
+    } catch (err) {
+      console.error('Erro ao preparar cupom', err)
+      setError('Erro ao preparar o cupom. Tente novamente.')
+    } finally {
+      setPrintingSaleId(null)
+    }
+  }
+
   const handleCancelSale = async (sale: Sale) => {
     try {
       const { error } = await supabase.rpc('cancel_sale', { p_sale_id: sale.id, })
@@ -371,6 +393,15 @@ export default function Page() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handlePrintSale(sale)}
+                              disabled={printingSaleId === sale.id}
+                            >
+                              <Printer className="mr-2 h-4 w-4" />
+                              {printingSaleId === sale.id
+                                ? 'Preparando cupom...'
+                                : 'Imprimir cupom'}
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleViewDetails(sale)}>
                               Ver Detalhes
                             </DropdownMenuItem>

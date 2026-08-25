@@ -31,6 +31,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@prodexy/ui'
 import { Check, ChevronsUpDown, Printer, Share2, X } from 'lucide-react'
 import { cn } from '@prodexy/ui'
 import { supabase } from '@/lib/supabaseClient'
+import {
+  printThermalReceipt,
+  type ThermalReceiptData,
+} from '@/lib/thermal-receipt'
 
 interface SaleDialogProps {
   open: boolean
@@ -72,7 +76,8 @@ export function SaleDialog({ open, onOpenChange, onSaleCreated }: SaleDialogProp
   const [openCustomer, setOpenCustomer] = useState(false)
   const [openProduct, setOpenProduct] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
-  const [saleData, setSaleData] = useState<any>(null)
+  const [saleData, setSaleData] = useState<ThermalReceiptData | null>(null)
+  const [printWarning, setPrintWarning] = useState<string | null>(null)
 
   const [customers, setCustomers] = useState<DbCustomer[]>([])
   const [availableProducts, setAvailableProducts] = useState<DbProduct[]>([])
@@ -453,19 +458,44 @@ export function SaleDialog({ open, onOpenChange, onSaleCreated }: SaleDialogProp
       }
 
       // 5) Dados para o recibo / sucesso
-      setSaleData({
-        ...formData,
-        products,
-        subtotalValue: currentSubtotal,
-        feeValue: currentFeeValue,
-        discountValue: currentDiscountValue,
-        totalValue: currentTotalValue,
-        installmentDates:
-          formData.paymentType === 'credit' ? installmentDates : [],
-        date: new Date().toLocaleDateString('pt-BR'),
-      })
+      const receiptData: ThermalReceiptData = {
+        saleId,
+        issuedAt: new Date(),
+        customerName: formData.customerName || 'Não identificado',
+        items: products.map((product) => ({
+          name: product.name,
+          quantity: product.quantity,
+          unitPrice: product.unitPrice,
+          subtotal: product.subtotal,
+        })),
+        subtotal: currentSubtotal,
+        fee: currentFeeValue,
+        discount: currentDiscountValue,
+        total: currentTotalValue,
+        paymentLabel:
+          formData.paymentType === 'cash'
+            ? 'À vista'
+            : `Parcelado em ${installmentDates.length}x`,
+        installments:
+          formData.paymentType === 'credit'
+            ? installmentDates.map((installment) => ({
+                number: installment.number,
+                value: installment.value,
+                dueDate: installment.dueDate,
+              }))
+            : [],
+      }
+
+      setSaleData(receiptData)
+      setPrintWarning(null)
       setShowSuccess(true)
       onSaleCreated?.()
+
+      if (!printThermalReceipt(receiptData)) {
+        setPrintWarning(
+          'A impressão automática não pôde ser aberta. Use “Imprimir novamente”.',
+        )
+      }
     } catch (err: any) {
       console.error('Erro ao registrar venda', err)
       setError(err.message || 'Erro ao registrar venda. Tente novamente.')
@@ -475,7 +505,14 @@ export function SaleDialog({ open, onOpenChange, onSaleCreated }: SaleDialogProp
   }
 
   const handlePrint = () => {
-    window.print()
+    if (!saleData) return
+    if (printThermalReceipt(saleData)) {
+      setPrintWarning(null)
+      return
+    }
+    setPrintWarning(
+      'Não foi possível abrir a impressão. Verifique as permissões do navegador.',
+    )
   }
 
   const handleSendWhatsApp = () => {
@@ -525,6 +562,8 @@ export function SaleDialog({ open, onOpenChange, onSaleCreated }: SaleDialogProp
     setProducts([])
     setCurrentProduct({ id: '', name: '', quantity: '1', unitPrice: '' })
     setInstallmentDates([])
+    setSaleData(null)
+    setPrintWarning(null)
     setError(null)
     if (barcodeTimerRef.current) {
       clearTimeout(barcodeTimerRef.current)
@@ -535,11 +574,18 @@ export function SaleDialog({ open, onOpenChange, onSaleCreated }: SaleDialogProp
 
   if (showSuccess) {
     return (
-      <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
+      <Dialog
+        open={showSuccess}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) handleClose()
+        }}
+      >
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Venda Registrada com Sucesso!</DialogTitle>
-        <DialogDescription>Preencha os dados da venda.</DialogDescription>
+            <DialogDescription>
+              O cupom de 80 mm foi enviado para impressão.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="rounded-lg bg-muted p-4 space-y-2">
@@ -553,16 +599,19 @@ export function SaleDialog({ open, onOpenChange, onSaleCreated }: SaleDialogProp
                 <strong>Valor Total:</strong> R$ {totalValue.toFixed(2)}
               </p>
             </div>
+            {printWarning && (
+              <p className="text-sm text-amber-700">{printWarning}</p>
+            )}
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            {/*<Button
+            <Button
               variant="outline"
               onClick={handlePrint}
               className="gap-2 w-full sm:w-auto"
             >
               <Printer className="h-4 w-4" />
-              Imprimir
-            </Button>*/}
+              Imprimir novamente
+            </Button>
             <Button
               variant="outline"
               onClick={handleSendWhatsApp}
